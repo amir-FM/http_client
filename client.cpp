@@ -17,8 +17,10 @@ public:
 	}
 
 	TCP(string server_ip, uint16_t port){
+		this->tcpfd = -1;
 		this->server_ip = server_ip;
 		this->port = port;
+		fill_addr_in();
 	}
 
 	int start(){
@@ -27,24 +29,32 @@ public:
 		tcpfd = socket(AF_INET, SOCK_STREAM, 0);
 		DIE(tcpfd < 0, "socket");
 
-		struct sockaddr_in addr;
+		rc = reconnect();
+		if(rc < 0)return -1;
+
+		return 0;
+	}
+
+	int fill_addr_in(){
 		memset(&addr, 0, sizeof(addr));
 		addr.sin_family = AF_INET;
 		addr.sin_port = htons(port);
-		rc = inet_pton(AF_INET, server_ip.data(), &addr.sin_addr.s_addr);
+		int rc = inet_pton(AF_INET, server_ip.data(), &addr.sin_addr.s_addr);
 		if(rc <= 0){
 			ERR("invalid IP address");
 			stop();
 			return -1;
 		}
+		return 0;
+	}
 
-		rc = connect(tcpfd, (struct sockaddr *)&addr, sizeof(addr));
+	int reconnect(){
+		int rc = connect(tcpfd, (struct sockaddr *)&addr, sizeof(addr));
 		if(rc < 0){
 			ERR("could not connect to server");
 			stop();
 			return -1;
 		}
-
 		return 0;
 	}
 
@@ -54,6 +64,8 @@ public:
 	}
 
 	int send_message(string message){
+		int rc = start();
+		if(rc < 0)return -1;
 		return send_all(message);
 	}
 	
@@ -62,6 +74,7 @@ public:
 		int rc = recv_all(message);
 		if(rc < 0)
 			return "";
+		stop();
 		return message;
 	}
 
@@ -69,6 +82,8 @@ private:
 	string server_ip;
 	uint16_t port;
 	int tcpfd;
+	bool is_connected;
+	struct sockaddr_in addr;
 
 	int send_all(string message){
 		if(tcpfd == -1){
@@ -82,8 +97,10 @@ private:
 		int sent = 0;
 		while(sent != len){
 			int rc = send(tcpfd, buf + sent, len - sent, 0);
-			if(rc < 0)
+			if(rc < 0){
 				ERR("could not send message");
+				return -1;
+			}
 
 			if(!rc)break;
 			sent += rc;
@@ -99,14 +116,16 @@ private:
 		}
 
 		char buf[MAXLEN];
+		int rc;
 		while(1){
 			int rc = recv(tcpfd, buf, MAXLEN, 0);
-			if(rc < 0)
-				ERR("could not recv message");
+			if(rc < 0){
+				ERR("could not send message");
+				return -1;
+			}
+
 			if(!rc)break;
-			
-			string aux = buf;
-			message.append(aux, 0, rc);
+			message.append(buf, 0, rc);
 		}
 
 		return 0;
@@ -116,6 +135,10 @@ private:
 
 class HTTP {
 public:
+	HTTP(){}
+	HTTP(string host){
+		this->host = host;
+	}
 	void clear_message(){
 		this->message = "";
 	}
@@ -173,7 +196,7 @@ public:
 		message += data;
 	}
 
-	void compute_get(string path, string host){
+	void compute_get(string path){
 		clear_message();
 		add_head("GET", path, "");
 		add_header("Host", host);
@@ -181,7 +204,7 @@ public:
 		add_line("");
 	}
 
-	void compute_post(string path, string host, string type, vector<string> elems){
+	void compute_post(string path, string type, vector<string> elems){
 
 		clear_message();
 		add_head("POST", path, "");
@@ -219,12 +242,17 @@ public:
 		cookies.push_back(cookie);
 	}
 
+	void add_cookie(vector<string> to_add){
+		this->cookies.insert(this->cookies.end(), to_add.begin(), to_add.end());
+	}
+
 	void clear_cookies(){
 		cookies.clear();
 	}
 
 private:
 	string message;
+	string host;
 	vector<string> cookies;
 };
 
@@ -257,24 +285,17 @@ private:
 };
 
 int main(){
-	TCP t("54.217.160.10", 8080);
-	t.start();
-	//t.send_message("salut");
-	//cout << t.recv_message() << endl;
-	//t.stop();
-	HTTP h;
+	TCP t("63.32.125.183", 8081);
+	HTTP h("63.32.125.183");
 	HTTP_Res hres;
-	//h.compute_get("/api/v1/dummy", "www.google.com");
-	//t.send_message(h.get_message());
-	//cout << t.recv_message() << endl;
 
-	vector<string> elems = {"username=student", "password=student"};
-	h.compute_post("/api/v1/auth/login", "urlencoded", "54.217.160.10", elems);
+	h.compute_get("/api/v1/tema/admin/users");
+	cout << h.get_message() << endl;
 	t.send_message(h.get_message());
-	hres.add_response(t.recv_message());
-	vector<string> cookies = hres.get_cookies();
-	for(auto it : cookies)
-		cout << it << endl;
+	cout << t.recv_message() << endl;
 
-	t.stop();
+	cout << h.get_message() << endl;
+	t.send_message(h.get_message());
+	cout << t.recv_message() << endl;
+
 }
