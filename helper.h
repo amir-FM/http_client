@@ -1,0 +1,23 @@
+#ifndef _HELPERS_H
+#define _HELPERS_H 1
+
+#define DEBUG 1
+#define MAXLEN 1024
+
+#define DIE(assertion, call_description)                                       \
+  do {                                                                         \
+    if (assertion) {                                                           \
+      fprintf(stderr, "(%s, %d): ", __FILE__, __LINE__);                       \
+      perror(call_description);                                                \
+      exit(EXIT_FAILURE);                                                      \
+    }                                                                          \
+  } while (0)								       \
+
+#define ERR(call_description)                                       	       \
+  do {                                                                         \
+    if (DEBUG) {                                                  	       \
+      fprintf(stderr, "ERROR: %s\n", call_description);    		       \
+    }                                                                          \
+  } while (0)								       \
+
+#endif
