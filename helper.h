@@ -2,7 +2,7 @@
 #define _HELPERS_H 1
 
 #define DEBUG 1
-#define MAXLEN 1024
+#define MAXLEN 1000
 
 #define DIE(assertion, call_description)                                       \
   do {                                                                         \
