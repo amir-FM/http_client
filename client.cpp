@@ -142,6 +142,7 @@ public:
 	HTTP(){}
 	HTTP(string host){
 		this->host = host;
+		this->jwt = "";
 	}
 	void clear_message(){
 		this->message = "";
@@ -208,8 +209,33 @@ public:
 		add_line("");
 	}
 
-	void compute_post(string path, vector<string> elems){
+	void compute_get_jwt(string path){
+		clear_message();
+		add_head("GET", path, "");
+		add_header("Host", host);
+		add_header("Authorization", jwt);
+		add_cookies();
+		add_line("");
+	}
 
+	void compute_get_jwt(string path, string elem){
+		clear_message();
+		add_head("GET", path + "/" + elem, "");
+		add_header("Host", host);
+		add_header("Authorization", jwt);
+		add_cookies();
+		add_line("");
+	}
+
+	void compute_delete(string path, string elem){
+		clear_message();
+		add_head("DELETE", path + "/" + elem, "");
+		add_header("Host", host);
+		add_cookies();
+		add_line("");
+	}
+
+	void compute_post(string path, vector<string> elems){
 		clear_message();
 		add_head("POST", path, "");
 		add_header("Host", host);
@@ -219,8 +245,18 @@ public:
 		add_data(data);
 	}
 
-	void compute_post(string path, json j){
+	void compute_post_jwt(string path, json j){
+		clear_message();
+		add_head("POST", path, "");
+		add_header("Host", host);
+		add_header("Authorization", jwt);
+		string data = add_json(j);
+		add_cookies();
+		add_line("");
+		add_data(data);
+	}
 
+	void compute_post(string path, json j){
 		clear_message();
 		add_head("POST", path, "");
 		add_header("Host", host);
@@ -269,14 +305,20 @@ public:
 		this->cookies.insert(this->cookies.end(), to_add.begin(), to_add.end());
 	}
 
+	void add_jwt(string jwt){
+		this->jwt = "Bearer " + jwt;
+	}
+
 	void clear_cookies(){
 		cookies.clear();
+		this->jwt = "";
 	}
 
 private:
 	string message;
 	string host;
 	vector<string> cookies;
+	string jwt;
 };
 
 class HTTP_Res {
@@ -316,11 +358,17 @@ public:
 	}
 
 	void parse_json(){
-		parsed_data = json::parse(this->data);
+		try{
+			parsed_data = json::parse(this->data);
+		}catch(...){
+			parsed_data = json({});
+		}
 	}
 
 	string get_error(){
 		parse_json();
+		if(parsed_data.empty())
+			return "bad recv";
 		return parsed_data["error"];
 	}
 
@@ -360,6 +408,15 @@ public:
 		return in;
 	}
 
+	string get_input_line(string str){
+		cout << str << "=";
+		string in;
+		getline(cin, in);
+		while(in.empty())
+			getline(cin, in);
+		return in;
+	}
+
 	void success(string str){
 		cout << "SUCCESS: " << str << endl;
 	}
@@ -378,8 +435,8 @@ public:
 		cout << h->get_message() << endl;
 		put_message();
 		if(hres->check_response()){
-			success("Admin autentificat cu succes");
 			h->add_cookie(hres->get_cookies());
+			success("Admin autentificat cu succes");
 		}else{
 			error(hres->get_error());
 		}
@@ -406,11 +463,124 @@ public:
 		cout << h->get_message() << endl;
 		put_message();
 		if(hres->check_response()){
-			success("Lista utilizatorilor");
 			json j = hres->get_json();
+			success("Lista utilizatorilor");
 			int index = 1;
 			for(auto it : j["users"])
 				cout << "#" << index++ << " " << it["username"].dump() << ":" << it["password"].dump() << endl;
+		}else{
+			error(hres->get_error());
+		}
+	}
+
+	void delete_user(){
+		string user = get_input("username");
+		h->compute_delete("/api/v1/tema/admin/users", user);
+		cout << h->get_message() << endl;
+		put_message();
+		if(hres->check_response()){
+			success("Utilizator sters");
+		}else{
+			error(hres->get_error());
+		}
+	}
+
+	void logout_admin(){
+		h->compute_get("/api/v1/tema/admin/logout");
+		cout << h->get_message() << endl;
+		put_message();
+		if(hres->check_response()){
+			h->clear_cookies();
+			success("Admin delogat");
+		}else{
+			error(hres->get_error());
+		}
+	}
+
+	void login(){
+		string admin = get_input("admin_username");
+		string user = get_input("username");
+		string pass = get_input("password");
+		json j;
+		j["admin_username"] = admin;
+		j["username"] = user;
+		j["password"] = pass;
+		h->compute_post("/api/v1/tema/user/login", j);
+		cout << h->get_message() << endl;
+		put_message();
+		if(hres->check_response()){
+			h->add_cookie(hres->get_cookies());
+			success("Autentificare reusita");
+		}else{
+			error(hres->get_error());
+		}
+	}
+
+	void get_access(){
+		h->compute_get("/api/v1/tema/library/access");
+		cout << h->get_message() << endl;
+		put_message();
+		cout << t->get_response() << endl;
+		if(hres->check_response()){
+			string jwt = hres->get_json()["token"];
+			h->add_jwt(jwt);
+			success("Token JWT primit");
+		}else{
+			error(hres->get_error());
+		}
+	}
+
+	void get_movies(){
+		h->compute_get_jwt("/api/v1/tema/library/movies");
+		cout << h->get_message() << endl;
+		put_message();
+		cout << t->get_response() << endl;
+		if(hres->check_response()){
+			json data = hres->get_json();
+			success("Lista filmelor");
+			for(auto it : data["movies"]){
+				cout << "#" << it["id"] << " " << it["title"] << endl;
+			}
+		}else{
+			error(hres->get_error());
+		}
+	}
+
+	void get_movie(){
+		string id = get_input("id");
+		h->compute_get_jwt("/api/v1/tema/library/movies", id);
+		cout << h->get_message() << endl;
+		put_message();
+		cout << t->get_response() << endl;
+		if(hres->check_response()){
+			json data = hres->get_json();
+			success("Detalii film");
+			cout << "id: " << data["id"] << endl;
+			cout << "title: " << data["title"] << endl;
+			cout << "year: " << data["year"] << endl;
+			cout << "description: " << data["description"] << endl;
+			cout << "rating: " << data["rating"] << endl;
+		}else{
+			error(hres->get_error());
+		}
+	}
+
+	void add_movie(){
+		string title = get_input_line("title");
+		string year = get_input("year");
+		string desc = get_input_line("description");
+		string rating = get_input("rating");
+
+		json j;
+		j["title"] = title;
+		j["year"] = year;
+		j["description"] = desc;
+		j["rating"] = rating;
+		h->compute_post_jwt("/api/v1/tema/library/movies", j);
+		cout << h->get_message() << endl;
+		put_message();
+		if(hres->check_response()){
+			success("Film adaugat");
 		}else{
 			error(hres->get_error());
 		}
@@ -426,6 +596,20 @@ public:
 				add_user();
 			else if(choice == "get_users")
 				get_users();
+			else if(choice == "delete_user")
+				delete_user();
+			else if(choice == "logout_admin")
+				logout_admin();
+			else if(choice == "login")
+				login();
+			else if(choice == "get_access")
+				get_access();
+			else if(choice == "get_movies")
+				get_movies();
+			else if(choice == "get_movie")
+				get_movie();
+			else if(choice == "add_movie")
+				add_movie();
 			else if(choice == "exit")
 				return;
 		}
