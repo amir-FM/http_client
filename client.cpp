@@ -283,6 +283,7 @@ class HTTP_Res {
 public:
 	void add_response(string response){
 		this->response = response;
+		this->data = "";
 	}
 
 	vector<string> get_cookies(){
@@ -310,14 +311,28 @@ public:
 			return "";
 
 		start += 4;
-		string data = response.substr(start, response.size() - start);
-		return data;
+		this->data = response.substr(start, response.size() - start);
+		return this->data;
+	}
+
+	void parse_json(){
+		parsed_data = json::parse(this->data);
+	}
+
+	string get_error(){
+		parse_json();
+		return parsed_data["error"];
+	}
+
+	json get_json(){
+		parse_json();
+		return parsed_data;
 	}
 
 	bool check_response(){
 		string first_line = response.substr(0, response.find("\r", 0));
 
-		if(first_line.find("200", 0) != string::npos)
+		if(first_line.find("20", 0) != string::npos)
 			return true;
 
 		return false;
@@ -325,31 +340,111 @@ public:
 
 private:
 	string response;
+	string data;
+	json parsed_data;
+};
+
+class Client {
+public:
+	Client (){}
+	Client (string ip, uint16_t port){
+		this->t = new TCP(ip, port);
+		this->h = new HTTP(ip);
+		this->hres = new HTTP_Res();
+	}
+
+	string get_input(string str){
+		cout << str << "=";
+		string in;
+		cin >> in;
+		return in;
+	}
+
+	void success(string str){
+		cout << "SUCCESS: " << str << endl;
+	}
+
+	void error(string str){
+		cout << "ERROR: " << str << endl;
+	}
+
+	void login_admin(){
+		string user = get_input("username");
+		string pass = get_input("password");
+		json j;
+		j["username"] = user;
+		j["password"] = pass;
+		h->compute_post("/api/v1/tema/admin/login", j);
+		cout << h->get_message() << endl;
+		put_message();
+		if(hres->check_response()){
+			success("Admin autentificat cu succes");
+			h->add_cookie(hres->get_cookies());
+		}else{
+			error(hres->get_error());
+		}
+	}
+
+	void add_user(){
+		string user = get_input("username");
+		string pass = get_input("password");
+		json j;
+		j["username"] = user;
+		j["password"] = pass;
+		h->compute_post("/api/v1/tema/admin/users", j);
+		cout << h->get_message() << endl;
+		put_message();
+		if(hres->check_response()){
+			success("Utilizator adaugat cu succes");
+		}else{
+			error(hres->get_error());
+		}
+	}
+
+	void get_users(){
+		h->compute_get("/api/v1/tema/admin/users");
+		cout << h->get_message() << endl;
+		put_message();
+		if(hres->check_response()){
+			success("Lista utilizatorilor");
+			json j = hres->get_json();
+			int index = 1;
+			for(auto it : j["users"])
+				cout << "#" << index++ << " " << it["username"].dump() << ":" << it["password"].dump() << endl;
+		}else{
+			error(hres->get_error());
+		}
+	}
+
+	void run(){
+		while(1){
+			string choice;
+			cin >> choice;
+			if(choice == "login_admin")
+				login_admin();
+			else if(choice == "add_user")
+				add_user();
+			else if(choice == "get_users")
+				get_users();
+			else if(choice == "exit")
+				return;
+		}
+	}
+
+private:
+	void put_message(){
+		t->send_message(h->get_message());
+		t->recv_message();
+		hres->add_response(t->get_response());
+		hres->get_data();
+	}
+
+	TCP *t;
+	HTTP *h;
+	HTTP_Res *hres;
 };
 
 int main(){
-	TCP t("63.32.125.183", 8081);
-	HTTP h("63.32.125.183");
-	HTTP_Res hres;
-
-	//h.compute_get("/api/v1/tema/admin/users");
-	//cout << h.get_message() << endl;
-	//t.send_message(h.get_message());
-	//cout << t.recv_message() << endl;
-
-	//cout << h.get_message() << endl;
-	//t.send_message(h.get_message());
-	//cout << t.recv_message() << endl;
-	
-	json j;
-	j["username"] = "test";
-	j["password"] = "test";
-	h.compute_post("/api/v1/tema/admin/login", j);
-	cout << h.get_message() << endl;
-	t.send_message(h.get_message());
-	t.recv_message();
-	hres.add_response(t.get_response());
-	cout << hres.check_response() << endl;
-	cout << hres.get_data() << endl;
-
+	Client c("63.32.125.183", 8081);
+	c.run();
 }
