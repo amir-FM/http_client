@@ -593,9 +593,9 @@ public:
 
 		json j;
 		j["title"] = title;
-		j["year"] = year;
+		j["year"] = stoi(year);
 		j["description"] = desc;
-		j["rating"] = rating;
+		j["rating"] = stof(rating);
 		h->compute_post_jwt("/api/v1/tema/library/movies", j);
 		cout << h->get_message() << endl;
 		put_message();
@@ -615,9 +615,9 @@ public:
 
 		json j;
 		j["title"] = title;
-		j["year"] = year;
+		j["year"] = stoi(year);
 		j["description"] = desc;
-		j["rating"] = rating;
+		j["rating"] = stof(rating);
 		h->compute_put_jwt("/api/v1/tema/library/movies", id, j);
 		cout << h->get_message() << endl;
 		put_message();
@@ -640,7 +640,7 @@ public:
 		}
 	}
 
-	void get_collections(){
+	int get_collections(){
 		h->compute_get_jwt("/api/v1/tema/library/collections");
 		cout << h->get_message() << endl;
 		put_message();
@@ -651,8 +651,24 @@ public:
 			//for(auto it : data["movies"]){
 			//	cout << "#" << it["id"] << " " << it["title"] << endl;
 			//}
+			return 0;
 		}else{
 			error(hres->get_error());
+			return -1;
+		}
+	}
+
+	int get_collections(json &res){
+		h->compute_get_jwt("/api/v1/tema/library/collections");
+		cout << h->get_message() << endl;
+		put_message();
+		cout << t->get_response() << endl;
+		if(hres->check_response()){
+			json data = hres->get_json();
+			res = data;
+			return 0;
+		}else{
+			return -1;
 		}
 	}
 
@@ -675,7 +691,25 @@ public:
 		}
 	}
 
-	void add_collection(){
+	void get_collection(string id){
+		h->compute_get_jwt("/api/v1/tema/library/collections", id);
+		cout << h->get_message() << endl;
+		put_message();
+		cout << t->get_response() << endl;
+		if(hres->check_response()){
+			json data = hres->get_json();
+			success("Detalii colectie");
+			cout << "id: " << data["id"] << endl;
+			cout << "title: " << data["title"] << endl;
+			cout << "owner: " << data["owner"] << endl;
+			for(auto it : data["movies"])
+				cout << "#" << it["id"] << " " << it["title"] << endl;
+		}else{
+			error(hres->get_error());
+		}
+	}
+
+	int add_collection(){
 		string title = get_input("title");
 		json j;
 		j["title"] = title;
@@ -684,8 +718,23 @@ public:
 		put_message();
 		if(hres->check_response()){
 			success("Colectie creeata");
+			return 0;
 		}else{
 			error(hres->get_error());
+			return -1;
+		}
+	}
+
+	int add_collection(string title){
+		json j;
+		j["title"] = title;
+		h->compute_post_jwt("/api/v1/tema/library/collections", j);
+		cout << h->get_message() << endl;
+		put_message();
+		if(hres->check_response()){
+			return 0;
+		}else{
+			return -1;
 		}
 	}
 
@@ -713,6 +762,19 @@ public:
 			success("Film adaugat la colectie");
 		}else{
 			error(hres->get_error());
+		}
+	}
+
+	int add_movie_to_collection(string id, string movie_id){
+		json j;
+		j["id"] = stoi(movie_id);
+		h->compute_post_jwt("/api/v1/tema/library/collections/" + id + "/movies", j);
+		cout << h->get_message() << endl;
+		put_message();
+		if(hres->check_response()){
+			return 0;
+		}else{
+			return -1;
 		}
 	}
 
@@ -795,6 +857,50 @@ public:
 	//		error(hres->get_error());
 	//	}
 	//}
+	//
+	void add_collection_routine(){
+		string title = get_input("title");
+		int rc = add_collection(title);
+		if(rc < 0){
+			error("Failed to create collection");
+			return;
+		}
+
+		string collection_id;
+		json j;
+		rc = get_collections(j);
+		if(rc < 0){
+			error("Failed to create collection");
+			return;
+		}
+		bool found = false;
+		for(auto it : j["collections"]){
+      			if(it["title"] == title){
+				collection_id = to_string(it["id"]);
+				found = true;
+				break;
+			}
+		}
+		if(!found){
+			error("Failed to create collection");
+			return;
+		}
+
+		int num_movies;
+		cout << "num_movies=";
+		cin >> num_movies;
+
+		for(int i = 0; i < num_movies; i++){
+			string movie_id = get_input("movie_id[" + to_string(i) + "]=");
+			rc = add_movie_to_collection(collection_id, movie_id);
+			if(rc < 0){
+				error("Failed to create collection");
+				return;
+			}
+		}
+	
+		get_collection(collection_id);	
+	}
 
 	void run(){
 		while(1){
@@ -829,7 +935,7 @@ public:
 			else if(choice == "get_collection")
 				get_collection();
 			else if(choice == "add_collection")
-				add_collection();
+				add_collection_routine();
 			else if(choice == "delete_collection")
 				delete_collection();
 			else if(choice == "add_movie_to_collection")
