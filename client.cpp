@@ -7,8 +7,10 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include "helper.h"
+#include "json.hpp"
 
 using namespace std;
+using json = nlohmann::json;
 
 class TCP {
 public:
@@ -69,13 +71,14 @@ public:
 		return send_all(message);
 	}
 	
-	string recv_message(){
-		string message = "";
-		int rc = recv_all(message);
-		if(rc < 0)
-			return "";
+	void recv_message(){
+		this->recvd_message = "";
+		int rc = recv_all(this->recvd_message);
 		stop();
-		return message;
+	}
+
+	string get_response(){
+		return this->recvd_message;
 	}
 
 private:
@@ -84,6 +87,7 @@ private:
 	int tcpfd;
 	bool is_connected;
 	struct sockaddr_in addr;
+	string recvd_message;
 
 	int send_all(string message){
 		if(tcpfd == -1){
@@ -204,7 +208,7 @@ public:
 		add_line("");
 	}
 
-	void compute_post(string path, string type, vector<string> elems){
+	void compute_post(string path, vector<string> elems){
 
 		clear_message();
 		add_head("POST", path, "");
@@ -215,9 +219,28 @@ public:
 		add_data(data);
 	}
 
+	void compute_post(string path, json j){
+
+		clear_message();
+		add_head("POST", path, "");
+		add_header("Host", host);
+		string data = add_json(j);
+		add_cookies();
+		add_line("");
+		add_data(data);
+	}
+
 	string add_urlencoded(vector<string> elems){
 		string data = urlencode(elems);
 		add_header("Content-Type", "application/x-www-form-urlencoded");
+		add_header("Content-Length", data.size());
+
+		return data;
+	}
+
+	string add_json(json j){
+		string data = j.dump();
+		add_header("Content-Type", "application/json");
 		add_header("Content-Length", data.size());
 
 		return data;
@@ -280,6 +303,26 @@ public:
 		cookie.pop_back();
 		return cookie;
 	}
+
+	string get_data(){
+		int start = response.find("\r\n\r\n", 0);
+		if(start == string::npos)
+			return "";
+
+		start += 4;
+		string data = response.substr(start, response.size() - start);
+		return data;
+	}
+
+	bool check_response(){
+		string first_line = response.substr(0, response.find("\r", 0));
+
+		if(first_line.find("200", 0) != string::npos)
+			return true;
+
+		return false;
+	}
+
 private:
 	string response;
 };
@@ -289,13 +332,24 @@ int main(){
 	HTTP h("63.32.125.183");
 	HTTP_Res hres;
 
-	h.compute_get("/api/v1/tema/admin/users");
-	cout << h.get_message() << endl;
-	t.send_message(h.get_message());
-	cout << t.recv_message() << endl;
+	//h.compute_get("/api/v1/tema/admin/users");
+	//cout << h.get_message() << endl;
+	//t.send_message(h.get_message());
+	//cout << t.recv_message() << endl;
 
+	//cout << h.get_message() << endl;
+	//t.send_message(h.get_message());
+	//cout << t.recv_message() << endl;
+	
+	json j;
+	j["username"] = "test";
+	j["password"] = "test";
+	h.compute_post("/api/v1/tema/admin/login", j);
 	cout << h.get_message() << endl;
 	t.send_message(h.get_message());
-	cout << t.recv_message() << endl;
+	t.recv_message();
+	hres.add_response(t.get_response());
+	cout << hres.check_response() << endl;
+	cout << hres.get_data() << endl;
 
 }
