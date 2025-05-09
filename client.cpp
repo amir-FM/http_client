@@ -235,6 +235,15 @@ public:
 		add_line("");
 	}
 
+	void compute_delete_jwt(string path, string elem){
+		clear_message();
+		add_head("DELETE", path + "/" + elem, "");
+		add_header("Host", host);
+		add_header("Authorization", jwt);
+		add_cookies();
+		add_line("");
+	}
+
 	void compute_post(string path, vector<string> elems){
 		clear_message();
 		add_head("POST", path, "");
@@ -248,6 +257,17 @@ public:
 	void compute_post_jwt(string path, json j){
 		clear_message();
 		add_head("POST", path, "");
+		add_header("Host", host);
+		add_header("Authorization", jwt);
+		string data = add_json(j);
+		add_cookies();
+		add_line("");
+		add_data(data);
+	}
+
+	void compute_put_jwt(string path, string elem, json j){
+		clear_message();
+		add_head("PUT", path + "/" + elem, "");
 		add_header("Host", host);
 		add_header("Authorization", jwt);
 		string data = add_json(j);
@@ -452,7 +472,7 @@ public:
 		cout << h->get_message() << endl;
 		put_message();
 		if(hres->check_response()){
-			success("Utilizator adaugat cu succes");
+			success("utilizator adaugat cu succes");
 		}else{
 			error(hres->get_error());
 		}
@@ -586,6 +606,196 @@ public:
 		}
 	}
 
+	void update_movie(){
+		string id = get_input("id");
+		string title = get_input_line("title");
+		string year = get_input("year");
+		string desc = get_input_line("description");
+		string rating = get_input("rating");
+
+		json j;
+		j["title"] = title;
+		j["year"] = year;
+		j["description"] = desc;
+		j["rating"] = rating;
+		h->compute_put_jwt("/api/v1/tema/library/movies", id, j);
+		cout << h->get_message() << endl;
+		put_message();
+		if(hres->check_response()){
+			success("Film actualizat");
+		}else{
+			error(hres->get_error());
+		}
+	}
+
+	void delete_movie(){
+		string id = get_input("id");
+		h->compute_delete_jwt("/api/v1/tema/library/movies", id);
+		cout << h->get_message() << endl;
+		put_message();
+		if(hres->check_response()){
+			success("Film sters");
+		}else{
+			error(hres->get_error());
+		}
+	}
+
+	void get_collections(){
+		h->compute_get_jwt("/api/v1/tema/library/collections");
+		cout << h->get_message() << endl;
+		put_message();
+		cout << t->get_response() << endl;
+		if(hres->check_response()){
+			json data = hres->get_json();
+			success("Lista colectiilor");
+			//for(auto it : data["movies"]){
+			//	cout << "#" << it["id"] << " " << it["title"] << endl;
+			//}
+		}else{
+			error(hres->get_error());
+		}
+	}
+
+	void get_collection(){
+		string id = get_input("id");
+		h->compute_get_jwt("/api/v1/tema/library/collections", id);
+		cout << h->get_message() << endl;
+		put_message();
+		cout << t->get_response() << endl;
+		if(hres->check_response()){
+			json data = hres->get_json();
+			success("Detalii colectie");
+			cout << "id: " << data["id"] << endl;
+			cout << "title: " << data["title"] << endl;
+			cout << "owner: " << data["owner"] << endl;
+			for(auto it : data["movies"])
+				cout << "#" << it["id"] << " " << it["title"] << endl;
+		}else{
+			error(hres->get_error());
+		}
+	}
+
+	void add_collection(){
+		string title = get_input("title");
+		json j;
+		j["title"] = title;
+		h->compute_post_jwt("/api/v1/tema/library/collections", j);
+		cout << h->get_message() << endl;
+		put_message();
+		if(hres->check_response()){
+			success("Colectie creeata");
+		}else{
+			error(hres->get_error());
+		}
+	}
+
+	void delete_collection(){
+		string id = get_input("id");
+		h->compute_delete_jwt("/api/v1/tema/library/collections", id);
+		cout << h->get_message() << endl;
+		put_message();
+		if(hres->check_response()){
+			success("Colectie stearsa");
+		}else{
+			error(hres->get_error());
+		}
+	}
+
+	void add_movie_to_collection(){
+		string id = get_input("id");
+		string movie_id = get_input("movie_id");
+		json j;
+		j["id"] = stoi(movie_id);
+		h->compute_post_jwt("/api/v1/tema/library/collections/" + id + "/movies", j);
+		cout << h->get_message() << endl;
+		put_message();
+		if(hres->check_response()){
+			success("Film adaugat la colectie");
+		}else{
+			error(hres->get_error());
+		}
+	}
+
+	void delete_movie_from_collection(){
+		string id = get_input("id");
+		string movie_id = get_input("movie_id");
+		h->compute_delete_jwt("/api/v1/tema/library/collections/" + id + "/movies", movie_id);
+		cout << h->get_message() << endl;
+		put_message();
+		if(hres->check_response()){
+			success("Film sters din colectie");
+		}else{
+			error(hres->get_error());
+		}
+	}
+
+	void logout(){
+		h->compute_get("/api/v1/tema/user/logout");
+		cout << h->get_message() << endl;
+		put_message();
+		if(hres->check_response()){
+			h->clear_cookies();
+			success("User delogat");
+		}else{
+			error(hres->get_error());
+		}
+	}
+
+	//void add_movie(){
+	//	string title = get_input_line("title");
+	//	string year = get_input("year");
+	//	string desc = get_input_line("description");
+	//	string rating = get_input("rating");
+
+	//	json j;
+	//	j["title"] = title;
+	//	j["year"] = year;
+	//	j["description"] = desc;
+	//	j["rating"] = rating;
+	//	h->compute_post_jwt("/api/v1/tema/library/movies", j);
+	//	cout << h->get_message() << endl;
+	//	put_message();
+	//	if(hres->check_response()){
+	//		success("Film adaugat");
+	//	}else{
+	//		error(hres->get_error());
+	//	}
+	//}
+
+	//void update_movie(){
+	//	string id = get_input("id");
+	//	string title = get_input_line("title");
+	//	string year = get_input("year");
+	//	string desc = get_input_line("description");
+	//	string rating = get_input("rating");
+
+	//	json j;
+	//	j["title"] = title;
+	//	j["year"] = year;
+	//	j["description"] = desc;
+	//	j["rating"] = rating;
+	//	h->compute_put_jwt("/api/v1/tema/library/movies", id, j);
+	//	cout << h->get_message() << endl;
+	//	put_message();
+	//	if(hres->check_response()){
+	//		success("Film actualizat");
+	//	}else{
+	//		error(hres->get_error());
+	//	}
+	//}
+
+	//void delete_movie(){
+	//	string id = get_input("id");
+	//	h->compute_delete_jwt("/api/v1/tema/library/movies", id);
+	//	cout << h->get_message() << endl;
+	//	put_message();
+	//	if(hres->check_response()){
+	//		success("Film sters");
+	//	}else{
+	//		error(hres->get_error());
+	//	}
+	//}
+
 	void run(){
 		while(1){
 			string choice;
@@ -610,6 +820,24 @@ public:
 				get_movie();
 			else if(choice == "add_movie")
 				add_movie();
+			else if(choice == "update_movie")
+				update_movie();
+			else if(choice == "delete_movie")
+				delete_movie();
+			else if(choice == "get_collections")
+				get_collections();
+			else if(choice == "get_collection")
+				get_collection();
+			else if(choice == "add_collection")
+				add_collection();
+			else if(choice == "delete_collection")
+				delete_collection();
+			else if(choice == "add_movie_to_collection")
+				add_movie_to_collection();
+			else if(choice == "delete_movie_from_collection")
+				delete_movie_from_collection();
+			else if(choice == "logout")
+				logout();
 			else if(choice == "exit")
 				return;
 		}
