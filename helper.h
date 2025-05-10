@@ -1,7 +1,7 @@
 #ifndef _HELPERS_H
 #define _HELPERS_H 1
 
-#define DEBUG 1
+#define DEBUG 0
 #define MAXLEN 1000
 
 #define DIE(assertion, call_description)                                       \
