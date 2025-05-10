@@ -452,7 +452,7 @@ public:
 		j["username"] = user;
 		j["password"] = pass;
 		h->compute_post("/api/v1/tema/admin/login", j);
-		cout << h->get_message() << endl;
+		if(DEBUG)cout << h->get_message() << endl;
 		put_message();
 		if(hres->check_response()){
 			h->add_cookie(hres->get_cookies());
@@ -469,7 +469,7 @@ public:
 		j["username"] = user;
 		j["password"] = pass;
 		h->compute_post("/api/v1/tema/admin/users", j);
-		cout << h->get_message() << endl;
+		if(DEBUG)cout << h->get_message() << endl;
 		put_message();
 		if(hres->check_response()){
 			success("utilizator adaugat cu succes");
@@ -480,14 +480,13 @@ public:
 
 	void get_users(){
 		h->compute_get("/api/v1/tema/admin/users");
-		cout << h->get_message() << endl;
+		if(DEBUG)cout << h->get_message() << endl;
 		put_message();
 		if(hres->check_response()){
 			json j = hres->get_json();
 			success("Lista utilizatorilor");
-			int index = 1;
 			for(auto it : j["users"])
-				cout << "#" << index++ << " " << it["username"].dump() << ":" << it["password"].dump() << endl;
+				cout << "#" << it["id"] << " " << it["username"] << ":" << it["password"] << endl;
 		}else{
 			error(hres->get_error());
 		}
@@ -496,7 +495,7 @@ public:
 	void delete_user(){
 		string user = get_input("username");
 		h->compute_delete("/api/v1/tema/admin/users", user);
-		cout << h->get_message() << endl;
+		if(DEBUG)cout << h->get_message() << endl;
 		put_message();
 		if(hres->check_response()){
 			success("Utilizator sters");
@@ -507,7 +506,7 @@ public:
 
 	void logout_admin(){
 		h->compute_get("/api/v1/tema/admin/logout");
-		cout << h->get_message() << endl;
+		if(DEBUG)cout << h->get_message() << endl;
 		put_message();
 		if(hres->check_response()){
 			h->clear_cookies();
@@ -526,7 +525,7 @@ public:
 		j["username"] = user;
 		j["password"] = pass;
 		h->compute_post("/api/v1/tema/user/login", j);
-		cout << h->get_message() << endl;
+		if(DEBUG)cout << h->get_message() << endl;
 		put_message();
 		if(hres->check_response()){
 			h->add_cookie(hres->get_cookies());
@@ -538,9 +537,9 @@ public:
 
 	void get_access(){
 		h->compute_get("/api/v1/tema/library/access");
-		cout << h->get_message() << endl;
+		if(DEBUG)cout << h->get_message() << endl;
 		put_message();
-		cout << t->get_response() << endl;
+		if(DEBUG)cout << t->get_response() << endl;
 		if(hres->check_response()){
 			string jwt = hres->get_json()["token"];
 			h->add_jwt(jwt);
@@ -552,9 +551,9 @@ public:
 
 	void get_movies(){
 		h->compute_get_jwt("/api/v1/tema/library/movies");
-		cout << h->get_message() << endl;
+		if(DEBUG)cout << h->get_message() << endl;
 		put_message();
-		cout << t->get_response() << endl;
+		if(DEBUG)cout << t->get_response() << endl;
 		if(hres->check_response()){
 			json data = hres->get_json();
 			success("Lista filmelor");
@@ -568,10 +567,16 @@ public:
 
 	void get_movie(){
 		string id = get_input("id");
+		try{
+			stoi(id);
+		}catch(...){
+			error("Datele nu au tipul cerut");
+			return;
+		}
 		h->compute_get_jwt("/api/v1/tema/library/movies", id);
-		cout << h->get_message() << endl;
+		if(DEBUG)cout << h->get_message() << endl;
 		put_message();
-		cout << t->get_response() << endl;
+		if(DEBUG)cout << t->get_response() << endl;
 		if(hres->check_response()){
 			json data = hres->get_json();
 			success("Detalii film");
@@ -592,12 +597,17 @@ public:
 		string rating = get_input("rating");
 
 		json j;
-		j["title"] = title;
-		j["year"] = stoi(year);
-		j["description"] = desc;
-		j["rating"] = stof(rating);
+		try{
+			j["title"] = title;
+			j["year"] = stoi(year);
+			j["description"] = desc;
+			j["rating"] = stoi(rating);
+		}catch(...){
+			error("Variabilele introduse nu au tipul specificat");
+			return;
+		}
 		h->compute_post_jwt("/api/v1/tema/library/movies", j);
-		cout << h->get_message() << endl;
+		if(DEBUG)cout << h->get_message() << endl;
 		put_message();
 		if(hres->check_response()){
 			success("Film adaugat");
@@ -614,12 +624,17 @@ public:
 		string rating = get_input("rating");
 
 		json j;
-		j["title"] = title;
-		j["year"] = stoi(year);
-		j["description"] = desc;
-		j["rating"] = stof(rating);
+		try{
+			j["title"] = title;
+			j["year"] = stoi(year);
+			j["description"] = desc;
+			j["rating"] = stoi(rating);
+		}catch(...){
+			error("Variabilele introduse nu au tipul specificat");
+			return;
+		}
 		h->compute_put_jwt("/api/v1/tema/library/movies", id, j);
-		cout << h->get_message() << endl;
+		if(DEBUG)cout << h->get_message() << endl;
 		put_message();
 		if(hres->check_response()){
 			success("Film actualizat");
@@ -630,8 +645,14 @@ public:
 
 	void delete_movie(){
 		string id = get_input("id");
+		try{
+			stoi(id);
+		}catch(...){
+			error("Datele nu au tipul cerut");
+			return;
+		}
 		h->compute_delete_jwt("/api/v1/tema/library/movies", id);
-		cout << h->get_message() << endl;
+		if(DEBUG)cout << h->get_message() << endl;
 		put_message();
 		if(hres->check_response()){
 			success("Film sters");
@@ -642,15 +663,15 @@ public:
 
 	int get_collections(){
 		h->compute_get_jwt("/api/v1/tema/library/collections");
-		cout << h->get_message() << endl;
+		if(DEBUG)cout << h->get_message() << endl;
 		put_message();
-		cout << t->get_response() << endl;
+		if(DEBUG)cout << t->get_response() << endl;
 		if(hres->check_response()){
 			json data = hres->get_json();
 			success("Lista colectiilor");
-			//for(auto it : data["movies"]){
-			//	cout << "#" << it["id"] << " " << it["title"] << endl;
-			//}
+			for(auto it : data["collections"]){
+				cout << "#" << it["id"] << " " << it["title"] << endl;
+			}
 			return 0;
 		}else{
 			error(hres->get_error());
@@ -660,9 +681,9 @@ public:
 
 	int get_collections(json &res){
 		h->compute_get_jwt("/api/v1/tema/library/collections");
-		cout << h->get_message() << endl;
+		if(DEBUG)cout << h->get_message() << endl;
 		put_message();
-		cout << t->get_response() << endl;
+		if(DEBUG)cout << t->get_response() << endl;
 		if(hres->check_response()){
 			json data = hres->get_json();
 			res = data;
@@ -674,10 +695,16 @@ public:
 
 	void get_collection(){
 		string id = get_input("id");
+		try{
+			stoi(id);
+		}catch(...){
+			error("datele nu au tipul cerut");
+			return;
+		}
 		h->compute_get_jwt("/api/v1/tema/library/collections", id);
-		cout << h->get_message() << endl;
+		if(DEBUG)cout << h->get_message() << endl;
 		put_message();
-		cout << t->get_response() << endl;
+		if(DEBUG)cout << t->get_response() << endl;
 		if(hres->check_response()){
 			json data = hres->get_json();
 			success("Detalii colectie");
@@ -692,10 +719,16 @@ public:
 	}
 
 	void get_collection(string id){
+		try{
+			stoi(id);
+		}catch(...){
+			error("datele nu au tipul cerut");
+			return;
+		}
 		h->compute_get_jwt("/api/v1/tema/library/collections", id);
-		cout << h->get_message() << endl;
+		if(DEBUG)cout << h->get_message() << endl;
 		put_message();
-		cout << t->get_response() << endl;
+		if(DEBUG)cout << t->get_response() << endl;
 		if(hres->check_response()){
 			json data = hres->get_json();
 			success("Detalii colectie");
@@ -714,7 +747,7 @@ public:
 		json j;
 		j["title"] = title;
 		h->compute_post_jwt("/api/v1/tema/library/collections", j);
-		cout << h->get_message() << endl;
+		if(DEBUG)cout << h->get_message() << endl;
 		put_message();
 		if(hres->check_response()){
 			success("Colectie creeata");
@@ -729,7 +762,7 @@ public:
 		json j;
 		j["title"] = title;
 		h->compute_post_jwt("/api/v1/tema/library/collections", j);
-		cout << h->get_message() << endl;
+		if(DEBUG)cout << h->get_message() << endl;
 		put_message();
 		if(hres->check_response()){
 			return 0;
@@ -741,7 +774,7 @@ public:
 	void delete_collection(){
 		string id = get_input("id");
 		h->compute_delete_jwt("/api/v1/tema/library/collections", id);
-		cout << h->get_message() << endl;
+		if(DEBUG)cout << h->get_message() << endl;
 		put_message();
 		if(hres->check_response()){
 			success("Colectie stearsa");
@@ -751,12 +784,17 @@ public:
 	}
 
 	void add_movie_to_collection(){
-		string id = get_input("id");
+		string collection_id = get_input("collection_id");
 		string movie_id = get_input("movie_id");
 		json j;
-		j["id"] = stoi(movie_id);
-		h->compute_post_jwt("/api/v1/tema/library/collections/" + id + "/movies", j);
-		cout << h->get_message() << endl;
+		try{
+			j["id"] = stoi(movie_id);
+		}catch(...){
+			error("Datele nu au tipul cerut");
+			return;
+		}
+		h->compute_post_jwt("/api/v1/tema/library/collections/" + collection_id + "/movies", j);
+		if(DEBUG)cout << h->get_message() << endl;
 		put_message();
 		if(hres->check_response()){
 			success("Film adaugat la colectie");
@@ -767,9 +805,14 @@ public:
 
 	int add_movie_to_collection(string id, string movie_id){
 		json j;
-		j["id"] = stoi(movie_id);
+		try{
+			j["id"] = stoi(movie_id);
+		}catch(...){
+			error("Datele nu au tipul cerut");
+			return -1;
+		}
 		h->compute_post_jwt("/api/v1/tema/library/collections/" + id + "/movies", j);
-		cout << h->get_message() << endl;
+		if(DEBUG)cout << h->get_message() << endl;
 		put_message();
 		if(hres->check_response()){
 			return 0;
@@ -779,10 +822,17 @@ public:
 	}
 
 	void delete_movie_from_collection(){
-		string id = get_input("id");
+		string collection_id = get_input("collection_id");
 		string movie_id = get_input("movie_id");
-		h->compute_delete_jwt("/api/v1/tema/library/collections/" + id + "/movies", movie_id);
-		cout << h->get_message() << endl;
+		try{
+			stoi(collection_id);
+			stoi(movie_id);
+		}catch(...){
+			error("Datele nu au tipul cerut");
+			return;
+		}
+		h->compute_delete_jwt("/api/v1/tema/library/collections/" + collection_id + "/movies", movie_id);
+		if(DEBUG)cout << h->get_message() << endl;
 		put_message();
 		if(hres->check_response()){
 			success("Film sters din colectie");
@@ -793,7 +843,7 @@ public:
 
 	void logout(){
 		h->compute_get("/api/v1/tema/user/logout");
-		cout << h->get_message() << endl;
+		if(DEBUG)cout << h->get_message() << endl;
 		put_message();
 		if(hres->check_response()){
 			h->clear_cookies();
@@ -803,63 +853,8 @@ public:
 		}
 	}
 
-	//void add_movie(){
-	//	string title = get_input_line("title");
-	//	string year = get_input("year");
-	//	string desc = get_input_line("description");
-	//	string rating = get_input("rating");
-
-	//	json j;
-	//	j["title"] = title;
-	//	j["year"] = year;
-	//	j["description"] = desc;
-	//	j["rating"] = rating;
-	//	h->compute_post_jwt("/api/v1/tema/library/movies", j);
-	//	cout << h->get_message() << endl;
-	//	put_message();
-	//	if(hres->check_response()){
-	//		success("Film adaugat");
-	//	}else{
-	//		error(hres->get_error());
-	//	}
-	//}
-
-	//void update_movie(){
-	//	string id = get_input("id");
-	//	string title = get_input_line("title");
-	//	string year = get_input("year");
-	//	string desc = get_input_line("description");
-	//	string rating = get_input("rating");
-
-	//	json j;
-	//	j["title"] = title;
-	//	j["year"] = year;
-	//	j["description"] = desc;
-	//	j["rating"] = rating;
-	//	h->compute_put_jwt("/api/v1/tema/library/movies", id, j);
-	//	cout << h->get_message() << endl;
-	//	put_message();
-	//	if(hres->check_response()){
-	//		success("Film actualizat");
-	//	}else{
-	//		error(hres->get_error());
-	//	}
-	//}
-
-	//void delete_movie(){
-	//	string id = get_input("id");
-	//	h->compute_delete_jwt("/api/v1/tema/library/movies", id);
-	//	cout << h->get_message() << endl;
-	//	put_message();
-	//	if(hres->check_response()){
-	//		success("Film sters");
-	//	}else{
-	//		error(hres->get_error());
-	//	}
-	//}
-	//
 	void add_collection_routine(){
-		string title = get_input("title");
+		string title = get_input_line("title");
 		int rc = add_collection(title);
 		if(rc < 0){
 			error("Failed to create collection");
@@ -867,21 +862,8 @@ public:
 		}
 
 		string collection_id;
-		json j;
-		rc = get_collections(j);
+		rc = get_collection_by_title(title, collection_id);
 		if(rc < 0){
-			error("Failed to create collection");
-			return;
-		}
-		bool found = false;
-		for(auto it : j["collections"]){
-      			if(it["title"] == title){
-				collection_id = to_string(it["id"]);
-				found = true;
-				break;
-			}
-		}
-		if(!found){
 			error("Failed to create collection");
 			return;
 		}
@@ -891,7 +873,7 @@ public:
 		cin >> num_movies;
 
 		for(int i = 0; i < num_movies; i++){
-			string movie_id = get_input("movie_id[" + to_string(i) + "]=");
+			string movie_id = get_input("movie_id[" + to_string(i) + "]");
 			rc = add_movie_to_collection(collection_id, movie_id);
 			if(rc < 0){
 				error("Failed to create collection");
@@ -900,6 +882,25 @@ public:
 		}
 	
 		get_collection(collection_id);	
+	}
+
+	int get_collection_by_title(string title, string &id){
+		json j;
+		int rc = get_collections(j);
+		if(rc < 0){
+			return -1;
+		}
+
+		int found = -1;
+		for(auto it : j["collections"]){
+      			if(it["title"] == title){
+				id = to_string(it["id"]);
+				found = 0;
+				break;
+			}
+		}
+
+		return found;
 	}
 
 	void run(){
