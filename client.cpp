@@ -31,10 +31,19 @@ class TCP {
     tcpfd = socket(AF_INET, SOCK_STREAM, 0);
     DIE(tcpfd < 0, "socket");
 
-    rc = reconnect();
-    if (rc < 0) return -1;
+    rc = connect(tcpfd, (struct sockaddr *)&addr, sizeof(addr));
+    if (rc < 0) {
+      ERR("could not connect to server");
+      stop();
+      return -1;
+    }
 
     return 0;
+  }
+
+  void restart(){
+    stop();
+    start();
   }
 
   int fill_addr_in() {
@@ -50,31 +59,21 @@ class TCP {
     return 0;
   }
 
-  int reconnect() {
-    int rc = connect(tcpfd, (struct sockaddr *)&addr, sizeof(addr));
-    if (rc < 0) {
-      ERR("could not connect to server");
-      stop();
-      return -1;
-    }
-    return 0;
-  }
-
   void stop() {
     close(tcpfd);
     tcpfd = -1;
   }
 
   int send_message(string message) {
-    int rc = start();
-    if (rc < 0) return -1;
+    //int rc = start();
+    //if (rc < 0) return -1;
     return send_all(message);
   }
 
   void recv_message() {
     this->recvd_message = "";
     int rc = recv_all(this->recvd_message);
-    stop();
+    //stop();
   }
 
   string get_response() { return this->recvd_message; }
@@ -117,20 +116,99 @@ class TCP {
       return -1;
     }
 
+    int body_len = -1;
+    int end = -1;
     char buf[MAXLEN];
-    int rc;
     while (1) {
       int rc = recv(tcpfd, buf, MAXLEN, 0);
       if (rc < 0) {
-        ERR("could not send message");
+        ERR("could not recv message");
         return -1;
       }
 
-      if (!rc) break;
+      if(!rc){
+        restart();
+        return -1;
+      }
+
+      if(body_len == -1)
+        body_len = search_body_len(buf, rc);
+      message.append(buf, 0, rc);
+      end = search_for_end(buf, rc);
+      if(end != -1)break;
+    }
+
+    if(body_len == -1)
+      return 0;
+
+    body_len -= end;
+    while(body_len){
+      int rc = recv(tcpfd, buf, MAXLEN, 0);
+      if (rc < 0) {
+        ERR("could not recv message");
+        return -1;
+      }
+
+      if(!rc){
+        restart();
+        return -1;
+      }
+
+      body_len -= rc;
       message.append(buf, 0, rc);
     }
 
     return 0;
+  }
+
+  int recv_normal(string &message) {
+    if (tcpfd == -1) {
+      ERR("TCP not started");
+      return -1;
+    }
+
+    char buf[MAXLEN];
+    int rc = recv(tcpfd, buf, MAXLEN, 0);
+    if (rc < 0) {
+      ERR("could not send message");
+      return -1;
+    }
+
+      message.append(buf, 0, rc);
+
+    return 0;
+  }
+
+  int search_body_len(char *buf, int size){
+    string str = buf;
+    str = str.substr(0, size);
+    int start = str.find("Content-Length", 0);
+    if(start == string::npos)
+      return -1;
+
+    int end = str.find("\r", start);
+    if(end == string::npos)
+      return -1;
+    string num = str.substr(start + 16, end - start - 16);
+    int fnum;
+    try{
+      fnum = stoi(num);
+    }catch(...){
+      ERR("tried to convert: " + num + " to int");
+      return -1;
+    }
+
+    return fnum;
+  }
+
+  int search_for_end(char *buf, int size){
+    string str = buf;
+    str = str.substr(0, size);
+    int pos = str.find("\r\n\r\n", 0);
+    if(pos == string::npos)
+      return -1;
+
+    return str.size() - pos - 4;
   }
 };
 
@@ -197,6 +275,7 @@ class HTTP {
     clear_message();
     add_head("GET", path, "");
     add_header("Host", host);
+    add_header("Connection", "keep-alive");
     add_cookies();
     add_line("");
   }
@@ -205,6 +284,7 @@ class HTTP {
     clear_message();
     add_head("GET", path, "");
     add_header("Host", host);
+    add_header("Connection", "keep-alive");
     add_header("Authorization", jwt);
     add_cookies();
     add_line("");
@@ -214,6 +294,7 @@ class HTTP {
     clear_message();
     add_head("GET", path + "/" + elem, "");
     add_header("Host", host);
+    add_header("Connection", "keep-alive");
     add_header("Authorization", jwt);
     add_cookies();
     add_line("");
@@ -223,6 +304,7 @@ class HTTP {
     clear_message();
     add_head("DELETE", path + "/" + elem, "");
     add_header("Host", host);
+    add_header("Connection", "keep-alive");
     add_cookies();
     add_line("");
   }
@@ -231,6 +313,7 @@ class HTTP {
     clear_message();
     add_head("DELETE", path + "/" + elem, "");
     add_header("Host", host);
+    add_header("Connection", "keep-alive");
     add_header("Authorization", jwt);
     add_cookies();
     add_line("");
@@ -240,6 +323,7 @@ class HTTP {
     clear_message();
     add_head("POST", path, "");
     add_header("Host", host);
+    add_header("Connection", "keep-alive");
     string data = add_urlencoded(elems);
     add_cookies();
     add_line("");
@@ -250,6 +334,7 @@ class HTTP {
     clear_message();
     add_head("POST", path, "");
     add_header("Host", host);
+    add_header("Connection", "keep-alive");
     add_header("Authorization", jwt);
     string data = add_json(j);
     add_cookies();
@@ -261,6 +346,7 @@ class HTTP {
     clear_message();
     add_head("PUT", path + "/" + elem, "");
     add_header("Host", host);
+    add_header("Connection", "keep-alive");
     add_header("Authorization", jwt);
     string data = add_json(j);
     add_cookies();
@@ -272,6 +358,7 @@ class HTTP {
     clear_message();
     add_head("POST", path, "");
     add_header("Host", host);
+    add_header("Connection", "keep-alive");
     string data = add_json(j);
     add_cookies();
     add_line("");
@@ -372,7 +459,9 @@ class HTTP_Res {
 
   string get_error() {
     parse_json();
-    if (parsed_data.empty()) return "bad recv";
+    if (parsed_data.empty()){ 
+      return "bad recv";
+    }
     return parsed_data["error"];
   }
 
@@ -402,6 +491,7 @@ class Client {
     this->t = new TCP(ip, port);
     this->h = new HTTP(ip);
     this->hres = new HTTP_Res();
+    t->start();
   }
 
   string get_input(string str) {
@@ -464,8 +554,8 @@ class Client {
       json j = hres->get_json();
       success("Lista utilizatorilor");
       for (auto it : j["users"])
-        cout << "#" << it["id"] << " " << it["username"] << ":"
-             << it["password"] << endl;
+        cout << "#" << it["id"] << " " << it["username"].get<string>() << ":"
+             << it["password"].get<string>() << endl;
     } else {
       error(hres->get_error());
     }
@@ -537,7 +627,7 @@ class Client {
       json data = hres->get_json();
       success("Lista filmelor");
       for (auto it : data["movies"]) {
-        cout << "#" << it["id"] << " " << it["title"] << endl;
+        cout << "#" << it["id"] << " " << it["title"].get<string>() << endl;
       }
     } else {
       error(hres->get_error());
@@ -560,9 +650,9 @@ class Client {
       json data = hres->get_json();
       success("Detalii film");
       cout << "id: " << data["id"] << endl;
-      cout << "title: " << data["title"] << endl;
+      cout << "title: " << data["title"].get<string>() << endl;
       cout << "year: " << data["year"] << endl;
-      cout << "description: " << data["description"] << endl;
+      cout << "description: " << data["description"].get<string>() << endl;
       cout << "rating: " << data["rating"] << endl;
     } else {
       error(hres->get_error());
@@ -649,7 +739,7 @@ class Client {
       json data = hres->get_json();
       success("Lista colectiilor");
       for (auto it : data["collections"]) {
-        cout << "#" << it["id"] << " " << it["title"] << endl;
+        cout << "#" << it["id"] << " " << it["title"].get<string>() << endl;
       }
       return 0;
     } else {
@@ -688,10 +778,10 @@ class Client {
       json data = hres->get_json();
       success("Detalii colectie");
       cout << "id: " << data["id"] << endl;
-      cout << "title: " << data["title"] << endl;
-      cout << "owner: " << data["owner"] << endl;
+      cout << "title: " << data["title"].get<string>() << endl;
+      cout << "owner: " << data["owner"].get<string>() << endl;
       for (auto it : data["movies"])
-        cout << "#" << it["id"] << " " << it["title"] << endl;
+        cout << "#" << it["id"] << " " << it["title"].get<string>() << endl;
     } else {
       error(hres->get_error());
     }
@@ -712,10 +802,10 @@ class Client {
       json data = hres->get_json();
       success("Detalii colectie");
       cout << "id: " << data["id"] << endl;
-      cout << "title: " << data["title"] << endl;
-      cout << "owner: " << data["owner"] << endl;
+      cout << "title: " << data["title"].get<string>() << endl;
+      cout << "owner: " << data["owner"].get<string>() << endl;
       for (auto it : data["movies"])
-        cout << "#" << it["id"] << " " << it["title"] << endl;
+        cout << "#" << it["id"] << " " << it["title"].get<string>() << endl;
     } else {
       error(hres->get_error());
     }
@@ -928,8 +1018,10 @@ class Client {
         delete_movie_from_collection();
       else if (choice == "logout")
         logout();
-      else if (choice == "exit")
+      else if (choice == "exit"){
+        t->stop();
         return;
+      }
     }
   }
 
