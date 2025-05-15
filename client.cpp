@@ -11,6 +11,9 @@
 #include "helper.h"
 #include "json.hpp"
 
+#define DEBUG 0
+#define MAXLEN 1000
+
 using namespace std;
 using json = nlohmann::json;
 
@@ -41,39 +44,16 @@ class TCP {
     return 0;
   }
 
-  void restart(){
-    stop();
-    start();
-  }
-
-  int fill_addr_in() {
-    memset(&addr, 0, sizeof(addr));
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(port);
-    int rc = inet_pton(AF_INET, server_ip.data(), &addr.sin_addr.s_addr);
-    if (rc <= 0) {
-      ERR("invalid IP address");
-      stop();
-      return -1;
-    }
-    return 0;
-  }
-
   void stop() {
     close(tcpfd);
     tcpfd = -1;
   }
 
-  int send_message(string message) {
-    //int rc = start();
-    //if (rc < 0) return -1;
-    return send_all(message);
-  }
+  int send_message(string message) { return send_all(message); }
 
   void recv_message() {
     this->recvd_message = "";
     int rc = recv_all(this->recvd_message);
-    //stop();
   }
 
   string get_response() { return this->recvd_message; }
@@ -126,30 +106,28 @@ class TCP {
         return -1;
       }
 
-      if(!rc){
+      if (!rc) {
         restart();
         return -1;
       }
 
-      if(body_len == -1)
-        body_len = search_body_len(buf, rc);
+      if (body_len == -1) body_len = search_body_len(buf, rc);
       message.append(buf, 0, rc);
       end = search_for_end(buf, rc);
-      if(end != -1)break;
+      if (end != -1) break;
     }
 
-    if(body_len == -1)
-      return 0;
+    if (body_len == -1) return 0;
 
     body_len -= end;
-    while(body_len){
+    while (body_len) {
       int rc = recv(tcpfd, buf, MAXLEN, 0);
       if (rc < 0) {
         ERR("could not recv message");
         return -1;
       }
 
-      if(!rc){
+      if (!rc) {
         restart();
         return -1;
       }
@@ -161,39 +139,19 @@ class TCP {
     return 0;
   }
 
-  int recv_normal(string &message) {
-    if (tcpfd == -1) {
-      ERR("TCP not started");
-      return -1;
-    }
-
-    char buf[MAXLEN];
-    int rc = recv(tcpfd, buf, MAXLEN, 0);
-    if (rc < 0) {
-      ERR("could not send message");
-      return -1;
-    }
-
-      message.append(buf, 0, rc);
-
-    return 0;
-  }
-
-  int search_body_len(char *buf, int size){
+  int search_body_len(char *buf, int size) {
     string str = buf;
     str = str.substr(0, size);
     int start = str.find("Content-Length", 0);
-    if(start == string::npos)
-      return -1;
+    if (start == string::npos) return -1;
 
     int end = str.find("\r", start);
-    if(end == string::npos)
-      return -1;
+    if (end == string::npos) return -1;
     string num = str.substr(start + 16, end - start - 16);
     int fnum;
-    try{
+    try {
       fnum = stoi(num);
-    }catch(...){
+    } catch (...) {
       ERR("tried to convert: " + num + " to int");
       return -1;
     }
@@ -201,14 +159,31 @@ class TCP {
     return fnum;
   }
 
-  int search_for_end(char *buf, int size){
+  int search_for_end(char *buf, int size) {
     string str = buf;
     str = str.substr(0, size);
     int pos = str.find("\r\n\r\n", 0);
-    if(pos == string::npos)
-      return -1;
+    if (pos == string::npos) return -1;
 
     return str.size() - pos - 4;
+  }
+
+  int fill_addr_in() {
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(port);
+    int rc = inet_pton(AF_INET, server_ip.data(), &addr.sin_addr.s_addr);
+    if (rc <= 0) {
+      ERR("invalid IP address");
+      stop();
+      return -1;
+    }
+    return 0;
+  }
+
+  void restart() {
+    stop();
+    start();
   }
 };
 
@@ -219,57 +194,6 @@ class HTTP {
     this->host = host;
     this->jwt = "";
   }
-  void clear_message() { this->message = ""; }
-
-  void add_line(string str) {
-    message.append(str);
-    message.append("\r\n");
-  }
-
-  void add_header(string name, string value) {
-    string aux = name;
-    aux += ": ";
-    aux += value;
-
-    add_line(aux);
-  }
-
-  void add_header(string name, int value) {
-    string aux = name;
-    aux += ": ";
-    aux += to_string(value);
-
-    add_line(aux);
-  }
-
-  void add_head(string method, string path, string params) {
-    string aux = method;
-    aux += " ";
-    aux += path;
-
-    if (params != "") {
-      aux += "?";
-      aux += params;
-    }
-
-    aux += " HTTP/1.1";
-
-    add_line(aux);
-  }
-
-  void add_cookies() {
-    if (!cookies.size()) return;
-    string aux = "Cookie: ";
-    int len = cookies.size();
-    for (int i = 0; i < len; i++) {
-      aux += cookies[i];
-      if (i != len - 1) aux += "; ";
-    }
-
-    add_line(aux);
-  }
-
-  void add_data(string data) { message += data; }
 
   void compute_get(string path) {
     clear_message();
@@ -365,6 +289,79 @@ class HTTP {
     add_data(data);
   }
 
+  string get_message() { return message; }
+
+  void add_cookie(string cookie) { cookies.push_back(cookie); }
+
+  void add_cookie(vector<string> to_add) {
+    this->cookies.insert(this->cookies.end(), to_add.begin(), to_add.end());
+  }
+
+  void add_jwt(string jwt) { this->jwt = "Bearer " + jwt; }
+
+  void clear_cookies() {
+    cookies.clear();
+    this->jwt = "";
+  }
+
+ private:
+  string message;
+  string host;
+  vector<string> cookies;
+  string jwt;
+
+  void clear_message() { this->message = ""; }
+
+  void add_line(string str) {
+    message.append(str);
+    message.append("\r\n");
+  }
+
+  void add_header(string name, string value) {
+    string aux = name;
+    aux += ": ";
+    aux += value;
+
+    add_line(aux);
+  }
+
+  void add_header(string name, int value) {
+    string aux = name;
+    aux += ": ";
+    aux += to_string(value);
+
+    add_line(aux);
+  }
+
+  void add_head(string method, string path, string params) {
+    string aux = method;
+    aux += " ";
+    aux += path;
+
+    if (params != "") {
+      aux += "?";
+      aux += params;
+    }
+
+    aux += " HTTP/1.1";
+
+    add_line(aux);
+  }
+
+  void add_cookies() {
+    if (!cookies.size()) return;
+    string aux = "Cookie: ";
+    int len = cookies.size();
+    for (int i = 0; i < len; i++) {
+      aux += cookies[i];
+      if (i != len - 1) aux += "; ";
+    }
+
+    add_line(aux);
+  }
+
+  void add_data(string data) { message += data; }
+
   string add_urlencoded(vector<string> elems) {
     string data = urlencode(elems);
     add_header("Content-Type", "application/x-www-form-urlencoded");
@@ -391,27 +388,6 @@ class HTTP {
 
     return aux;
   }
-
-  string get_message() { return message; }
-
-  void add_cookie(string cookie) { cookies.push_back(cookie); }
-
-  void add_cookie(vector<string> to_add) {
-    this->cookies.insert(this->cookies.end(), to_add.begin(), to_add.end());
-  }
-
-  void add_jwt(string jwt) { this->jwt = "Bearer " + jwt; }
-
-  void clear_cookies() {
-    cookies.clear();
-    this->jwt = "";
-  }
-
- private:
-  string message;
-  string host;
-  vector<string> cookies;
-  string jwt;
 };
 
 class HTTP_Res {
@@ -433,13 +409,6 @@ class HTTP_Res {
     return cookies;
   }
 
-  string parse_cookie(string cookie_line) {
-    int end = cookie_line.find(";");
-    string cookie = cookie_line.substr(12, end - 12 + 1);
-    cookie.pop_back();
-    return cookie;
-  }
-
   string get_data() {
     int start = response.find("\r\n\r\n", 0);
     if (start == string::npos) return "";
@@ -449,17 +418,9 @@ class HTTP_Res {
     return this->data;
   }
 
-  void parse_json() {
-    try {
-      parsed_data = json::parse(this->data);
-    } catch (...) {
-      parsed_data = json({});
-    }
-  }
-
   string get_error() {
     parse_json();
-    if (parsed_data.empty()){ 
+    if (parsed_data.empty()) {
       return "bad recv";
     }
     return parsed_data["error"];
@@ -482,6 +443,21 @@ class HTTP_Res {
   string response;
   string data;
   json parsed_data;
+
+  string parse_cookie(string cookie_line) {
+    int end = cookie_line.find(";");
+    string cookie = cookie_line.substr(12, end - 12 + 1);
+    cookie.pop_back();
+    return cookie;
+  }
+
+  void parse_json() {
+    try {
+      parsed_data = json::parse(this->data);
+    } catch (...) {
+      parsed_data = json({});
+    }
+  }
 };
 
 class Client {
@@ -492,6 +468,77 @@ class Client {
     this->h = new HTTP(ip);
     this->hres = new HTTP_Res();
     t->start();
+  }
+
+  void run() {
+    while (1) {
+      string choice;
+      cin >> choice;
+      if (choice == "login_admin")
+        login_admin();
+      else if (choice == "add_user")
+        add_user();
+      else if (choice == "get_users")
+        get_users();
+      else if (choice == "delete_user")
+        delete_user();
+      else if (choice == "logout_admin")
+        logout_admin();
+      else if (choice == "login")
+        login();
+      else if (choice == "get_access")
+        get_access();
+      else if (choice == "get_movies")
+        get_movies();
+      else if (choice == "get_movie")
+        get_movie();
+      else if (choice == "add_movie")
+        add_movie();
+      else if (choice == "update_movie")
+        update_movie();
+      else if (choice == "delete_movie")
+        delete_movie();
+      else if (choice == "get_collections")
+        get_collections();
+      else if (choice == "get_collection")
+        get_collection();
+      else if (choice == "add_collection")
+        add_collection_routine();
+      else if (choice == "delete_collection")
+        delete_collection();
+      else if (choice == "add_movie_to_collection")
+        add_movie_to_collection();
+      else if (choice == "delete_movie_from_collection")
+        delete_movie_from_collection();
+      else if (choice == "logout")
+        logout();
+      else if (choice == "exit") {
+        t->stop();
+        return;
+      } else {
+        error("comanda invalida");
+      }
+    }
+  }
+
+ private:
+  TCP *t;
+  HTTP *h;
+  HTTP_Res *hres;
+
+  void put_message() {
+    t->send_message(h->get_message());
+    t->recv_message();
+    hres->add_response(t->get_response());
+    hres->get_data();
+  }
+
+  bool check_no_spaces(string input) {
+    if (input.find(" ", 0) != string::npos) {
+      error("Datele nu au tipul cerut");
+      return true;
+    }
+    return false;
   }
 
   string get_input(string str) {
@@ -516,8 +563,8 @@ class Client {
   void login_admin() {
     string user = get_input_line("username");
     string pass = get_input_line("password");
-    if(check_no_spaces(user))return;
-    if(check_no_spaces(pass))return;
+    if (check_no_spaces(user)) return;
+    if (check_no_spaces(pass)) return;
     json j;
     j["username"] = user;
     j["password"] = pass;
@@ -535,8 +582,8 @@ class Client {
   void add_user() {
     string user = get_input_line("username");
     string pass = get_input_line("password");
-    if(check_no_spaces(user))return;
-    if(check_no_spaces(pass))return;
+    if (check_no_spaces(user)) return;
+    if (check_no_spaces(pass)) return;
     json j;
     j["username"] = user;
     j["password"] = pass;
@@ -567,7 +614,7 @@ class Client {
 
   void delete_user() {
     string user = get_input_line("username");
-    if(check_no_spaces(user))return;
+    if (check_no_spaces(user)) return;
     h->compute_delete("/api/v1/tema/admin/users", user);
     if (DEBUG) cout << h->get_message() << endl;
     put_message();
@@ -594,9 +641,9 @@ class Client {
     string admin = get_input_line("admin_username");
     string user = get_input_line("username");
     string pass = get_input_line("password");
-    if(check_no_spaces(admin))return;
-    if(check_no_spaces(user))return;
-    if(check_no_spaces(pass))return;
+    if (check_no_spaces(admin)) return;
+    if (check_no_spaces(user)) return;
+    if (check_no_spaces(pass)) return;
     json j;
     j["admin_username"] = admin;
     j["username"] = user;
@@ -661,9 +708,9 @@ class Client {
       cout << "title: " << data["title"].get<string>() << endl;
       cout << "year: " << data["year"] << endl;
       cout << "description: " << data["description"].get<string>() << endl;
-      try{
+      try {
         cout << "rating: " << stof(data["rating"].get<string>()) << endl;
-      }catch(...){
+      } catch (...) {
         cout << "rating: " << data["rating"] << endl;
       }
     } else {
@@ -854,9 +901,9 @@ class Client {
 
   void delete_collection() {
     string id = get_input("id");
-    try{
+    try {
       stoi(id);
-    }catch(...){
+    } catch (...) {
       error("Datele nu au tipul cerut");
     }
     h->compute_delete_jwt("/api/v1/tema/library/collections", id);
@@ -993,77 +1040,6 @@ class Client {
     }
 
     return found;
-  }
-
-  void run() {
-    while (1) {
-      string choice;
-      cin >> choice;
-      if (choice == "login_admin")
-        login_admin();
-      else if (choice == "add_user")
-        add_user();
-      else if (choice == "get_users")
-        get_users();
-      else if (choice == "delete_user")
-        delete_user();
-      else if (choice == "logout_admin")
-        logout_admin();
-      else if (choice == "login")
-        login();
-      else if (choice == "get_access")
-        get_access();
-      else if (choice == "get_movies")
-        get_movies();
-      else if (choice == "get_movie")
-        get_movie();
-      else if (choice == "add_movie")
-        add_movie();
-      else if (choice == "update_movie")
-        update_movie();
-      else if (choice == "delete_movie")
-        delete_movie();
-      else if (choice == "get_collections")
-        get_collections();
-      else if (choice == "get_collection")
-        get_collection();
-      else if (choice == "add_collection")
-        add_collection_routine();
-      else if (choice == "delete_collection")
-        delete_collection();
-      else if (choice == "add_movie_to_collection")
-        add_movie_to_collection();
-      else if (choice == "delete_movie_from_collection")
-        delete_movie_from_collection();
-      else if (choice == "logout")
-        logout();
-      else if (choice == "exit"){
-        t->stop();
-        return;
-      }else{
-        error("comanda invalida");
-      }
-    }
-  }
-
- private:
-  TCP *t;
-  HTTP *h;
-  HTTP_Res *hres;
-
-  void put_message() {
-    t->send_message(h->get_message());
-    t->recv_message();
-    hres->add_response(t->get_response());
-    hres->get_data();
-  }
-
-  bool check_no_spaces(string input){
-    if(input.find(" ", 0) != string::npos){
-      error("Datele nu au tipul cerut");
-      return true;
-    }
-    return false;
   }
 };
 
