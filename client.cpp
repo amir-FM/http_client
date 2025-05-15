@@ -514,8 +514,10 @@ class Client {
   void error(string str) { cout << "ERROR: " << str << endl; }
 
   void login_admin() {
-    string user = get_input("username");
-    string pass = get_input("password");
+    string user = get_input_line("username");
+    string pass = get_input_line("password");
+    if(check_no_spaces(user))return;
+    if(check_no_spaces(pass))return;
     json j;
     j["username"] = user;
     j["password"] = pass;
@@ -531,8 +533,10 @@ class Client {
   }
 
   void add_user() {
-    string user = get_input("username");
-    string pass = get_input("password");
+    string user = get_input_line("username");
+    string pass = get_input_line("password");
+    if(check_no_spaces(user))return;
+    if(check_no_spaces(pass))return;
     json j;
     j["username"] = user;
     j["password"] = pass;
@@ -562,7 +566,8 @@ class Client {
   }
 
   void delete_user() {
-    string user = get_input("username");
+    string user = get_input_line("username");
+    if(check_no_spaces(user))return;
     h->compute_delete("/api/v1/tema/admin/users", user);
     if (DEBUG) cout << h->get_message() << endl;
     put_message();
@@ -586,9 +591,12 @@ class Client {
   }
 
   void login() {
-    string admin = get_input("admin_username");
-    string user = get_input("username");
-    string pass = get_input("password");
+    string admin = get_input_line("admin_username");
+    string user = get_input_line("username");
+    string pass = get_input_line("password");
+    if(check_no_spaces(admin))return;
+    if(check_no_spaces(user))return;
+    if(check_no_spaces(pass))return;
     json j;
     j["admin_username"] = admin;
     j["username"] = user;
@@ -653,7 +661,11 @@ class Client {
       cout << "title: " << data["title"].get<string>() << endl;
       cout << "year: " << data["year"] << endl;
       cout << "description: " << data["description"].get<string>() << endl;
-      cout << "rating: " << data["rating"] << endl;
+      try{
+        cout << "rating: " << stof(data["rating"].get<string>()) << endl;
+      }catch(...){
+        cout << "rating: " << data["rating"] << endl;
+      }
     } else {
       error(hres->get_error());
     }
@@ -670,9 +682,9 @@ class Client {
       j["title"] = title;
       j["year"] = stoi(year);
       j["description"] = desc;
-      j["rating"] = stoi(rating);
+      j["rating"] = stof(rating);
     } catch (...) {
-      error("Variabilele introduse nu au tipul specificat");
+      error("Datele nu au tipul cerut");
       return;
     }
     h->compute_post_jwt("/api/v1/tema/library/movies", j);
@@ -697,9 +709,9 @@ class Client {
       j["title"] = title;
       j["year"] = stoi(year);
       j["description"] = desc;
-      j["rating"] = stoi(rating);
+      j["rating"] = stof(rating);
     } catch (...) {
-      error("Variabilele introduse nu au tipul specificat");
+      error("Datele nu au tipul cerut");
       return;
     }
     h->compute_put_jwt("/api/v1/tema/library/movies", id, j);
@@ -767,7 +779,7 @@ class Client {
     try {
       stoi(id);
     } catch (...) {
-      error("datele nu au tipul cerut");
+      error("Datele nu au tipul cerut");
       return;
     }
     h->compute_get_jwt("/api/v1/tema/library/collections", id);
@@ -791,7 +803,7 @@ class Client {
     try {
       stoi(id);
     } catch (...) {
-      error("datele nu au tipul cerut");
+      error("Datele nu au tipul cerut");
       return;
     }
     h->compute_get_jwt("/api/v1/tema/library/collections", id);
@@ -812,7 +824,7 @@ class Client {
   }
 
   int add_collection() {
-    string title = get_input("title");
+    string title = get_input_line("title");
     json j;
     j["title"] = title;
     h->compute_post_jwt("/api/v1/tema/library/collections", j);
@@ -842,6 +854,11 @@ class Client {
 
   void delete_collection() {
     string id = get_input("id");
+    try{
+      stoi(id);
+    }catch(...){
+      error("Datele nu au tipul cerut");
+    }
     h->compute_delete_jwt("/api/v1/tema/library/collections", id);
     if (DEBUG) cout << h->get_message() << endl;
     put_message();
@@ -857,6 +874,7 @@ class Client {
     string movie_id = get_input("movie_id");
     json j;
     try {
+      stoi(collection_id);
       j["id"] = stoi(movie_id);
     } catch (...) {
       error("Datele nu au tipul cerut");
@@ -876,6 +894,7 @@ class Client {
   int add_movie_to_collection(string id, string movie_id) {
     json j;
     try {
+      stoi(id);
       j["id"] = stoi(movie_id);
     } catch (...) {
       error("Datele nu au tipul cerut");
@@ -1021,11 +1040,17 @@ class Client {
       else if (choice == "exit"){
         t->stop();
         return;
+      }else{
+        error("comanda invalida");
       }
     }
   }
 
  private:
+  TCP *t;
+  HTTP *h;
+  HTTP_Res *hres;
+
   void put_message() {
     t->send_message(h->get_message());
     t->recv_message();
@@ -1033,9 +1058,13 @@ class Client {
     hres->get_data();
   }
 
-  TCP *t;
-  HTTP *h;
-  HTTP_Res *hres;
+  bool check_no_spaces(string input){
+    if(input.find(" ", 0) != string::npos){
+      error("Datele nu au tipul cerut");
+      return true;
+    }
+    return false;
+  }
 };
 
 int main() {
