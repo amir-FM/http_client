@@ -49,9 +49,7 @@ class TCP {
     tcpfd = -1;
   }
 
-  int send_message(string message) {
-    return send_all(message);
-  }
+  int send_message(string message) { return send_all(message); }
 
   int recv_message() {
     this->recvd_message = "";
@@ -521,14 +519,14 @@ class Client {
 
   void put_message() {
     int max_tries = 5;
-    while(max_tries--){
+    while (max_tries--) {
       int rc = t->send_message(h->get_message());
-      if(rc < 0){
+      if (rc < 0) {
         t->restart();
         continue;
       }
       rc = t->recv_message();
-      if(rc < 0){
+      if (rc < 0) {
         t->restart();
         continue;
       }
