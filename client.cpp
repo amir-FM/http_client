@@ -49,14 +49,22 @@ class TCP {
     tcpfd = -1;
   }
 
-  int send_message(string message) { return send_all(message); }
+  int send_message(string message) {
+    return send_all(message);
+  }
 
-  void recv_message() {
+  int recv_message() {
     this->recvd_message = "";
     int rc = recv_all(this->recvd_message);
+    return rc;
   }
 
   string get_response() { return this->recvd_message; }
+
+  void restart() {
+    stop();
+    start();
+  }
 
  private:
   string server_ip;
@@ -101,13 +109,8 @@ class TCP {
     char buf[MAXLEN];
     while (1) {
       int rc = recv(tcpfd, buf, MAXLEN, 0);
-      if (rc < 0) {
+      if (rc <= 0) {
         ERR("could not recv message");
-        return -1;
-      }
-
-      if (!rc) {
-        restart();
         return -1;
       }
 
@@ -122,13 +125,8 @@ class TCP {
     body_len -= end;
     while (body_len) {
       int rc = recv(tcpfd, buf, MAXLEN, 0);
-      if (rc < 0) {
+      if (rc <= 0) {
         ERR("could not recv message");
-        return -1;
-      }
-
-      if (!rc) {
-        restart();
         return -1;
       }
 
@@ -152,7 +150,7 @@ class TCP {
     try {
       fnum = stoi(num);
     } catch (...) {
-      ERR("tried to convert: " + num + " to int");
+      ERR("error at string to num conversion - search_body_len");
       return -1;
     }
 
@@ -179,11 +177,6 @@ class TCP {
       return -1;
     }
     return 0;
-  }
-
-  void restart() {
-    stop();
-    start();
   }
 };
 
@@ -527,8 +520,20 @@ class Client {
   HTTP_Res *hres;
 
   void put_message() {
-    t->send_message(h->get_message());
-    t->recv_message();
+    int max_tries = 5;
+    while(max_tries--){
+      int rc = t->send_message(h->get_message());
+      if(rc < 0){
+        t->restart();
+        continue;
+      }
+      rc = t->recv_message();
+      if(rc < 0){
+        t->restart();
+        continue;
+      }
+      break;
+    }
     hres->add_response(t->get_response());
     hres->get_data();
   }
