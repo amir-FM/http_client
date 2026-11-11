@@ -1,53 +1,27 @@
-# Tema 3 PCOM - HTTP Client
+# HTTP Client
 
-*timp rezolvare: aprox 4 zile*
+## Description
+For this project, I chose to implement the solution in C++, taking advantage of the STL library. I also modularized the program's functionalities using multiple interacting classes, with the note that they are written in a single file rather than separately.
 
-## Descriere
+## Technical Overview
 
-In cadrul acestei teme am ales sa imi scriu implementarea in limbajul **C++**
-gratie bilbiotecii **STL**. De asemenea am modularizat functionalitatile
-programului cu ajutorul mai multor clase care interactioneaza intre ele, cu
-mentiunea ca ele sunt scrise in acelasi fisier, nu separat.
+### Classes Used
+* **TCP** — enables the connection to the server and provides an interface for sending and receiving TCP messages.
+  * `start()` — opens a socket for communication.
+  * `stop()` — closes the socket.
+  * `send_message()` — sends a TCP message (the function ensures the entire message is transmitted).
+  * `recv_message()` — receives a message; by parsing the received data, it determines the body size (if applicable) and ensures the entire message is fully received.
+* **HTTP** — handles the generation of HTTP requests for GET, POST, DELETE, and PUT methods, taking into account cookies, JWT tokens, paths, URL parameters, and JSON data.
+* **HTTP_Res** — receives the HTTP response from the TCP class and interprets it.
+  * `add_response()` — adds new data to be processed.
+  * `check_response()` — checks whether the response has a 2XX success status code or an error code (any non-success code).
+  * `get_data()` — extracts the body from the response.
+  * `get_error()` — extracts the error message.
+  * `get_json()` — returns the JSON data from the body.
+* **Client** — manages user interaction by reading commands and executing functions in accordance with the server API and the commands available to the client.
 
-## Prezentare tehnica
+## JSON Integration
+When it came to working with JSON structures, I decided to use an existing library: `nlohmann/json` (available here: https://github.com/nlohmann/json). The choice to use this library comes down to a simple fact: without it, I would have had to manually implement a JSON parsing class, which would have doubled the development time. It is used both when extracting data from user input to build the request, and when parsing the response from the server.
 
-### Clase folosite
-
-- TCP --- face posibila conectarea la server si pune la dispozitie o
-*interfata* prin care trimit si se primesc mesaje TCP
-    - ```start()``` --- deschiderea unui socket pentru comunicare
-    - ```stop()``` --- inchiderea socket-ului
-    - ```send_message()``` --- trimiterea unui mesaj TCP (functia se asigura ca
-    tot mesajul a fost transmis)
-    - ```recv_message()``` --- primirea unui mesaj; prin parsarea datelor
-    primite se determina dimensiunea body-ului (daca este cazul) si este
-    receptat tot mesajul
-- HTTP --- se ocupa cu generarea de **cereri HTTP** pentru request-urile:
-**GET, POST, DELETE, PUT**, luand in considerare *cookie-urile*, *token jwt*,
-calea, parametrii url si datele json.
-- HTTP_Res --- primeste raspunsul HTTP de la clasa TCP si il interpreteaza
-    - ```add_response()``` --- adauga noi date pentru a le procesa
-    - ```check_response()``` --- verifica daca raspunsul are un cod de succes
-    de tip **2XX**, sau de eroare (orice cod care nu este de succes)
-    - ```get_data()``` --- extrage *body-ul* din raspuns
-    - ```get_error()``` --- extrage mesajul de eroare
-    - ```get_json()``` --- returneaza datele json din *body*
-- Client --- gestioneaza interactiunea cu utilizatorul: preluarea comenzilor si
-executarea functiilor in conformitate cu **API-ul** serverului si cu comenzile
-disponibile pentru client
-
-### Json
-
-In ceea ce priveste lucrul cu structurile de tip **json** am decis (asa cum
-este si recomandat in textul temei de casa) sa folosesc o biblioteca deja
-disponibila, astfel am ajuns la **nlohmann/json** (disponibila aici:
-https://github.com/nlohmann/json). Utilizarea acestei biblioteci este
-rezultatul unui singur fapt: daca nu as fi folosit-o ar fi trebuit sa
-implementez manual o clasa de parsare json, astfel dubland timpul de rezolvare.
-Cat despre locurile in care este utilizata: la preluarea datelor de la
-utilizator si construirea cererii, cat si la parsarea raspunsului de la server.
-
-### Alte mentiuni
-
-- Input-ul de la utilizator este verificat mereu, fie pentru corectitudinea
-datelor introduse, fie pentru introducerea unei comenzi valide.
+## Additional Notes
+* User input is always validated, ensuring both the correctness of the entered data and that a valid command was provided.
